@@ -4,17 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git Workflow
 
-After completing any meaningful unit of work, commit and push to GitHub so progress is never lost:
-
-```bash
-git add <files>
-git commit -m "short descriptive message"
-git push origin main
-```
-
-**Commit often** — after adding a feature, fixing a bug, or making any notable change. Use clear, specific commit messages (e.g. `"add splitter enemy death animation"`, not `"update stuff"`). Do not batch unrelated changes into one commit.
-
-Remote: https://github.com/Qinzilei/claudebot_setup
+- **Remote**: https://github.com/Qinzilei/claudebot_setup.git
+- **Branch**: main
+- **Commit Frequency**: Commit and push to GitHub regularly after completing meaningful work to preserve progress and maintain a clear work history.
+- **Commit Messages**: Use clean, descriptive commit messages in the format `<type>: <description>`, always including a co-author line:
+  - Example types: `feat:` (new feature), `fix:` (bug fix), `refactor:` (code reorganization), `docs:` (documentation)
+  - Always include: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+- **Push After Commits**: Always push commits to GitHub immediately after committing so all work is backed up in the repository history.
 
 ## Running the Games
 
