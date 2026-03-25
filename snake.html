@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Snake</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      color: #eee;
+    }
+    #hud {
+      display: flex;
+      gap: 3rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      letter-spacing: 1px;
+    }
+    .hud-item { text-align: center; }
+    .hud-item span { display: block; font-size: 1.6rem; font-weight: bold; color: #4ecca3; }
+    #hud .label { color: #888; font-size: 0.8rem; text-transform: uppercase; }
+    canvas { display: block; border: 2px solid #0f3460; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hud-item"><div class="label">Score</div><span id="scoreVal">0</span></div>
+  <div class="hud-item"><div class="label">Best</div><span id="bestVal">0</span></div>
+  <div class="hud-item"><div class="label">Level</div><span id="levelVal">1</span></div>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+// ─────────────────────────────────────────────────────────
+//  SETUP
+// ─────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+const COLS = 30, ROWS = 24, CELL = 22;
+canvas.width  = COLS * CELL;
+canvas.height = ROWS * CELL;
+
+// Scale canvas to fit window
+function resize() {
+  const s = Math.min(window.innerWidth / canvas.width, (window.innerHeight - 80) / canvas.height);
+  canvas.style.width  = canvas.width  * s + 'px';
+  canvas.style.height = canvas.height * s + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ─────────────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────────────
+const STATES = { MENU: 0, PLAYING: 1, DEAD: 2 };
+
+let snake, dir, nextDir, food, score, best, level, tickMs, lastTick, state, particles;
+
+best = 0;
+
+function init() {
+  snake   = [{ x: 10, y: 12 }, { x: 9, y: 12 }, { x: 8, y: 12 }];
+  dir     = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+  score   = 0;
+  level   = 1;
+  tickMs  = 140;
+  lastTick = performance.now();
+  particles = [];
+  spawnFood();
+  setState(STATES.PLAYING);
+}
+
+function setState(s) {
+  state = s;
+  document.getElementById('scoreVal').textContent = score;
+  document.getElementById('bestVal').textContent  = best;
+  document.getElementById('levelVal').textContent = level;
+}
+
+// ─────────────────────────────────────────────────────────
+//  FOOD
+// ─────────────────────────────────────────────────────────
+function spawnFood() {
+  const occupied = new Set(snake.map(s => s.x + ',' + s.y));
+  let x, y;
+  do {
+    x = Math.floor(Math.random() * COLS);
+    y = Math.floor(Math.random() * ROWS);
+  } while (occupied.has(x + ',' + y));
+  food = { x, y };
+}
+
+// ─────────────────────────────────────────────────────────
+//  INPUT
+// ─────────────────────────────────────────────────────────
+const KEY_MAP = {
+  ArrowUp:    { x:  0, y: -1 }, w: { x:  0, y: -1 }, W: { x:  0, y: -1 },
+  ArrowDown:  { x:  0, y:  1 }, s: { x:  0, y:  1 }, S: { x:  0, y:  1 },
+  ArrowLeft:  { x: -1, y:  0 }, a: { x: -1, y:  0 }, A: { x: -1, y:  0 },
+  ArrowRight: { x:  1, y:  0 }, d: { x:  1, y:  0 }, D: { x:  1, y:  0 },
+};
+
+document.addEventListener('keydown', e => {
+  if (state === STATES.MENU || state === STATES.DEAD) {
+    if (e.key === ' ' || e.key === 'Enter') { init(); return; }
+  }
+  if (state !== STATES.PLAYING) return;
+
+  const d = KEY_MAP[e.key];
+  if (!d) return;
+  // Prevent reversing
+  if (d.x !== -dir.x || d.y !== -dir.y) nextDir = d;
+  e.preventDefault();
+});
+
+// ─────────────────────────────────────────────────────────
+//  PARTICLES
+// ─────────────────────────────────────────────────────────
+function burst(cx, cy, color) {
+  for (let i = 0; i < 10; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 3;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.04 + Math.random() * 0.03,
+      r: 2 + Math.random() * 3,
+      color,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.9; p.vy *= 0.9;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─────────────────────────────────────────────────────────
+//  UPDATE
+// ─────────────────────────────────────────────────────────
+function update(now) {
+  if (state !== STATES.PLAYING) return;
+
+  updateParticles();
+
+  if (now - lastTick < tickMs) return;
+  lastTick = now;
+
+  dir = nextDir;
+
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    die(); return;
+  }
+
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    die(); return;
+  }
+
+  snake.unshift(head);
+
+  // Eat food
+  if (head.x === food.x && head.y === food.y) {
+    score += level * 10;
+    if (score > best) best = score;
+
+    // Level up every 5 food
+    const eaten = Math.floor(score / (level * 10 * 5)) + 1;
+    if (eaten > level) {
+      level = eaten;
+      tickMs = Math.max(60, 140 - (level - 1) * 10);
+    }
+
+    burst(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, '#e94560');
+    spawnFood();
+
+    document.getElementById('scoreVal').textContent = score;
+    document.getElementById('bestVal').textContent  = best;
+    document.getElementById('levelVal').textContent = level;
+  } else {
+    snake.pop();
+  }
+}
+
+function die() {
+  // Burst on head
+  burst(snake[0].x * CELL + CELL / 2, snake[0].y * CELL + CELL / 2, '#e94560');
+  setState(STATES.DEAD);
+}
+
+// ─────────────────────────────────────────────────────────
+//  RENDER
+// ─────────────────────────────────────────────────────────
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(15,52,96,0.4)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * CELL); ctx.lineTo(COLS * CELL, y * CELL); ctx.stroke();
+  }
+}
+
+function drawSnake() {
+  for (let i = 0; i < snake.length; i++) {
+    const seg = snake[i];
+    const t = i / snake.length;
+    // Head is bright, tail fades
+    const g = Math.round(204 - t * 80);
+    const b = Math.round(163 - t * 80);
+    ctx.fillStyle = i === 0 ? '#4ecca3' : `rgb(30,${g},${b})`;
+    const pad = i === 0 ? 1 : 2;
+    ctx.beginPath();
+    ctx.roundRect(seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, i === 0 ? 4 : 3);
+    ctx.fill();
+
+    // Eyes on head
+    if (i === 0) {
+      ctx.fillStyle = '#1a1a2e';
+      const ex = dir.y !== 0 ? [5, 11] : [dir.x === 1 ? 13 : 4, dir.x === 1 ? 13 : 4];
+      const ey = dir.x !== 0 ? [5, 11] : [dir.y === 1 ? 13 : 4, dir.y === 1 ? 13 : 4];
+      ctx.beginPath(); ctx.arc(seg.x * CELL + ex[0], seg.y * CELL + ey[0], 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(seg.x * CELL + ex[1], seg.y * CELL + ey[1], 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawFood() {
+  const cx = food.x * CELL + CELL / 2;
+  const cy = food.y * CELL + CELL / 2;
+  const pulse = 0.85 + 0.15 * Math.sin(performance.now() / 200);
+
+  // Glow
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, CELL * 0.7 * pulse);
+  grd.addColorStop(0, 'rgba(233,69,96,0.4)');
+  grd.addColorStop(1, 'rgba(233,69,96,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 0.7 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Apple
+  ctx.fillStyle = '#e94560';
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL * 0.35 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawOverlay(title, sub) {
+  ctx.fillStyle = 'rgba(26,26,46,0.82)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#4ecca3';
+  ctx.font = `bold ${CELL * 2.5}px 'Segoe UI', sans-serif`;
+  ctx.fillText(title, canvas.width / 2, canvas.height / 2 - CELL * 2);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = `${CELL}px 'Segoe UI', sans-serif`;
+  ctx.fillText(sub, canvas.width / 2, canvas.height / 2 + CELL * 0.5);
+
+  ctx.fillStyle = '#555';
+  ctx.font = `${CELL * 0.8}px 'Segoe UI', sans-serif`;
+  ctx.fillText('WASD or Arrow Keys to move', canvas.width / 2, canvas.height / 2 + CELL * 2.2);
+}
+
+function render() {
+  ctx.fillStyle = '#16213e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawGrid();
+
+  if (state !== STATES.MENU) {
+    drawFood();
+    drawSnake();
+    drawParticles();
+  }
+
+  if (state === STATES.MENU) {
+    drawOverlay('SNAKE', 'Press Space or Enter to start');
+  } else if (state === STATES.DEAD) {
+    drawParticles();
+    drawOverlay('GAME OVER', `Score: ${score}  |  Best: ${best}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+//  LOOP
+// ─────────────────────────────────────────────────────────
+function loop(now) {
+  update(now);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// Start at menu
+state = STATES.MENU;
+document.getElementById('scoreVal').textContent = 0;
+document.getElementById('bestVal').textContent  = 0;
+document.getElementById('levelVal').textContent = 1;
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
