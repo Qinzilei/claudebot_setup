@@ -1,0 +1,47 @@
+name: Build Claude Desktop Pet
+
+on:
+  push:
+    branches: [main]
+    paths: ['desktop-pet/**']
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop-pet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Claude-Desktop-Pet-macOS
+          path: |
+            desktop-pet/dist/*.dmg
+            desktop-pet/dist/*.zip
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-pet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Claude-Desktop-Pet-Windows
+          path: |
+            desktop-pet/dist/*.exe

@@ -6,3 +6,8 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Node / Electron
+node_modules/
+desktop-pet/dist/
+desktop-pet/package-lock.json
